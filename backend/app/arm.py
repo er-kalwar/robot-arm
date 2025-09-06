@@ -124,6 +124,17 @@ class RobotArm:
     def from_dict(cls, data: Dict[str, Any]) -> "RobotArm":
         joints = [Joint(**joint_data) for joint_data in data["joints"]]
         return cls(joints=joints)
+    
+    @classmethod
+    def from_dict(cls, data: Dict[str, Any]) -> "RobotArm":
+        joints: List[Joint] = []
+        for jd in data["joints"]:
+            j = Joint(name=jd["name"], min_deg=jd["min_deg"], max_deg=jd["max_deg"])
+            if "angle_deg" in jd:
+                j.set_angle_deg_safe(jd["angle_deg"], mode="clamp")
+            joints.append(j)
+        return cls(joints=joints)
+
 
     def to_json(self, *, indent: Optional[int] = 2) -> str:
         return json.dumps(self.to_dict(), indent=indent)
