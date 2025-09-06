@@ -119,11 +119,6 @@ class RobotArm:
         return {
             "joints": [joint.to_dict() for joint in self.joints]
         }
-
-    @classmethod
-    def from_dict(cls, data: Dict[str, Any]) -> "RobotArm":
-        joints = [Joint(**joint_data) for joint_data in data["joints"]]
-        return cls(joints=joints)
     
     @classmethod
     def from_dict(cls, data: Dict[str, Any]) -> "RobotArm":
@@ -143,3 +138,33 @@ class RobotArm:
     def from_json(cls, json_str: str) -> "RobotArm":
         data = json.loads(json_str)
         return cls.from_dict(data)
+    
+
+# -- Example usage | Test class --
+if __name__ == "__main__":
+    # Define a robotic arm with 6 joints
+    arm = RobotArm(joints=[
+        Joint(name="j1", min_deg=-180, max_deg=180),
+        Joint(name="j2", min_deg=-90, max_deg=90),
+        Joint(name="j3", min_deg=0, max_deg=135),
+        Joint(name="j4", min_deg=-180, max_deg=180),
+        Joint(name="j5", min_deg=-90, max_deg=90),
+        Joint(name="j6", min_deg=-360, max_deg=360),
+    ])
+
+    # Set angles safely
+    arm.set_angle_deg("j6", 23)
+    #arm.set_angles_deg([23, 30, 90])
+
+    # Print current angles
+    print("Current Angles:", arm.get_angles_deg)
+
+    # Serialize to JSON
+    json_repr = arm.to_json()
+    print("Serialized Arm:", json_repr)
+
+    # Deserialize from JSON
+    new_arm = RobotArm.from_json(json_repr)
+    print("Deserialized Angles:", new_arm.get_angles_deg)
+
+
