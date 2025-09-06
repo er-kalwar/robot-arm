@@ -1,7 +1,7 @@
 from dataclasses import dataclass, field 
-from typing import  Any , Dict
+from typing import  Any , Dict , List, Optional, Tuple, Iterable
 import math
-
+import json
 
 # -- Helper functions for arm kinematics --
 def deg2rad(deg: float) -> float:
@@ -68,11 +68,67 @@ class Joint:
             "angle_deg": self.angle_deg
         }
     
+# -- Robotic Arm -- 
+@dataclass
+class RobotArm:
+    """Collection of joints representing a robotic arm.
+    Provide safe bulk updates, serialization, and queries."""
+    joints: List[Joint]
+
+    # -- Queries --
+    @property
+    def names(self) -> List[str]:
+        return [joint.name for joint in self.joints]
+
+    @property
+    def get_angles_deg(self) -> List[float]:
+        return [joint.angle_deg for joint in self.joints]
+    
+    @property
+    def get_limits_deg(self) -> List[Tuple[float, float]]:
+        return [(joint.min_deg, joint.max_deg) for joint in self.joints]
+
+    def describe(self) -> List[Dict[str, Any]]:
+        return [joint.to_dict() for joint in self.joints]
+
+    # -- Commands --
+    def _index_of(self, name: str) -> int:
+        for i, joint in enumerate(self.joints):
+            if joint.name == name:
+                return i
+        raise KeyError(f"Joint with name {name} not found")
+
+    def set_angle_deg(self, joint_name: str, value_deg: float, *, mode: str = "clamp"):
+        idx = self._index_of(joint_name)
+        self.joints[idx].set_angle_deg_safe(value_deg, mode=mode)
+
+    def set_angles_deg(self, values_deg: Iterable[float], *, mode: str = "clamp"):
+        values = list(values_deg)
+        if len(values) != len(self.joints):
+            raise ValueError(f"Expected {len(self.joints)} angles, got {len(values)}")
+        for joint, value in zip(self.joints, values):
+            joint.set_angle_deg_safe(value, mode=mode)
+
+    def ensure_within_limits(self):
+        for joint in self.joints:
+            joint.validate_angle(joint.angle_deg)
 
 
-# Example test of Joint class
-if __name__ == "__main__":
-    j1 = Joint(name="joint_2", min_deg=-180, max_deg=180)
-    j1.angle_deg = 90
-    j1.set_angle_deg_safe(200, mode="clamp")
-    print(j1.to_dict()) 
+    # -- Serialization --
+    def to_dict(self) -> Dict[str, Any]:
+        return {
+            "joints": [joint.to_dict() for joint in self.joints]
+        }
+
+    @classmethod
+    def from_dict(cls, data: Dict[str, Any]) -> "RobotArm":
+        joints = [Joint(**joint_data) for joint_data in data["joints"]]
+        return cls(joints=joints)
+
+    def to_json(self, *, indent: Optional[int] = 2) -> str:
+        return json.dumps(self.to_dict(), indent=indent)
+    
+    @classmethod
+    def from_json(cls, json_str: str) -> "RobotArm":
+        data = json.loads(json_str)
+        return cls.from_dict(data)
