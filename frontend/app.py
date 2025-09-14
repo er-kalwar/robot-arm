@@ -159,7 +159,7 @@ def main() -> None:
                         traj = ji.run_interpolation(target_pos_deg, current_pos_deg=current_pos_deg)
 
                         # plot_trajectory should return a figure; fall back to image if it saves instead
-                        fig = plot_trajectory(traj, step_size=ji.step_size, dof=ji.dof)
+                        fig = plot_trajectory(traj, step_size=ji.step_size, dof=ji.dof,save_path="traj.png")
                         if fig is not None:
                             st.plotly_chart(fig, use_container_width=True)
                         st.session_state.current_pose_deg = target_pos_deg.copy()

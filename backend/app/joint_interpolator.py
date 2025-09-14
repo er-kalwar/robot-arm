@@ -197,6 +197,7 @@ class JointInterpolator:
         return trajectory
 
 
+## Testing
 def main():
     ji = JointInterpolator(step_size=0.01, dof=6, max_acceleration=50, max_velocity=10, max_jerk=500.0) # Units: deg, deg/s, deg/s^2, deg/s^3
     target_pos_deg, min_deg, max_deg = ji.load_desired_arm_state_from_api_server()
