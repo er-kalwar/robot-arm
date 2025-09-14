@@ -36,3 +36,8 @@ docker compose down
 ✅ Quick check
 Test backend directly:
 curl http://localhost:8000/arm
+
+# Summary
+The **frontend** is a Streamlit web app that lets you control the 6-DOF robot arm using sliders for each joint. When you adjust the sliders and click **Send Command to Robot**, it sends the joint angles to the backend, gets a trajectory back, and plots the positions, velocities, and accelerations in real time.
+
+Currently, there is no support for 3D Vizualization. 
