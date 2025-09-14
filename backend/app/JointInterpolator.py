@@ -1,7 +1,9 @@
 from dataclasses import dataclass
 from enum import Enum
-from typing import List, Optional
+from typing import List, Optional, Tuple
 from ruckig import InputParameter, OutputParameter, Ruckig, Result, ControlInterface, Synchronization
+import requests
+import time
 
 @dataclass
 class JointSample:
@@ -22,7 +24,6 @@ class JointInterpolator:
 
         self.input_param = InputParameter(self.dof)
         self.output_param = OutputParameter(self.dof)
-
         self.ruckig = Ruckig(self.dof, self.step_size)
 
         self.max_acceleration = [max_acceleration] * dof
@@ -33,33 +34,31 @@ class JointInterpolator:
         self.is_trajectory_active = False
         self.target_state = TargetState.STOP 
 
-        # Current state
         self.current_position = [0.0] * dof
         self.current_velocity = [0.0] * dof
         self.current_acceleration = [0.0] * dof
 
-
-    ## Helper methods
+    # Utils
     def __apply_limits(self):
         self.input_param.max_acceleration = self.max_acceleration
         self.input_param.max_velocity = self.max_velocity
         self.input_param.max_jerk = self.max_jerk
 
-    def is_finished(self) -> bool:
-        return not self.is_trajectory_active and self.target_state == TargetState.STOP
-
     def assert_length(self, lst: List[float], name: str):
         if len(lst) != self.dof:
             raise ValueError(f"{name} length {len(lst)} does not match DOF {self.dof}")
-        
-    ## Public methods
+    
+    def is_finished(self) -> bool:
+        return not self.is_trajectory_active
+    
+    # Core methods
     def set_target_configuration(self, target_position: List[float], current_position: Optional[List[float]] = None):
         self.assert_length(target_position, "target_position")
         if current_position is not None:
             self.assert_length(current_position, "current_position")
 
         ip = self.input_param
-        ip.control_interface = ControlInterface.POSITION
+        ip.control_interface = ControlInterface.Position
         ip.synchronization = Synchronization.Time
 
         ip.current_position = current_position or self.current_position
@@ -78,11 +77,10 @@ class JointInterpolator:
         self.assert_length(new_target_position, "new_target_position")
         if not self.is_trajectory_active:
             raise RuntimeError("No active trajectory to change target")
-            return
 
-          # Retarget from current dynamic state
+        # Retarget from current dynamic state
         ip = self.input_param
-        ip.control_interface = ControlInterface.POSITION
+        ip.control_interface = ControlInterface.Position
         ip.synchronization = Synchronization.Time
 
         ip.current_position = self.current_position
@@ -102,7 +100,7 @@ class JointInterpolator:
             return
 
         ip = self.input_param
-        ip.control_interface = ControlInterface.POSITION
+        ip.control_interface = ControlInterface.Velocity
         ip.synchronization = Synchronization.Time
 
         ip.current_position = self.current_position
@@ -110,6 +108,7 @@ class JointInterpolator:
         ip.current_acceleration = self.current_acceleration
 
         ip.target_velocity = [0.0] * self.dof # Stop in place
+        ip.target_acceleration = [0.0] * self.dof
 
         self.__apply_limits()
         self.is_trajectory_active = True
@@ -129,6 +128,7 @@ class JointInterpolator:
         result = self.ruckig.update(self.input_param, self.output_param)
 
         if result == Result.Error:
+            self.logger.error("Ruckig update failed")
             self.is_trajectory_active = False
             return JointSample(position=self.current_position.copy(),
                 velocity=self.current_velocity.copy(),
@@ -141,7 +141,7 @@ class JointInterpolator:
         self.current_velocity = list(self.output_param.new_velocity)
         self.current_acceleration = list(self.output_param.new_acceleration)
 
-        done = result == Result.Finished
+        done = (result == Result.Finished)
         if done:
             self.is_trajectory_active = False
         else:
@@ -153,3 +153,39 @@ class JointInterpolator:
             acceleration=self.current_acceleration.copy(),
             done=False
         )
+
+    def load_desired_arm_state_from_api_server(self, base_url: str = "http://127.0.0.1:8000") -> Tuple[List[float], List[float], List[float]]:
+        try:
+            data = requests.get(f"{base_url}/arm", timeout=2)
+            json_data = data.json()
+            joints_json_data = json_data["joints"]
+
+            target_pos_deg = [j["angle_deg"] for j in joints_json_data]
+            min_deg = [j["min_deg"] for j in joints_json_data]
+            max_deg = [j["max_deg"] for j in joints_json_data]
+
+            print(target_pos_deg)
+            return target_pos_deg, min_deg , max_deg
+        
+        except Exception as e:
+            raise RuntimeError(f"Failed to fetch arm state from API server: {e}")
+
+
+if __name__ == "__main__":
+    ji = JointInterpolator(step_size=0.01, dof=6, max_acceleration=50, max_velocity=10, max_jerk=500.0) # Units: deg, deg/s, deg/s^2, deg/s^3
+    target_pos_deg, min_deg, max_deg = ji.load_desired_arm_state_from_api_server()
+    current_pos_deg = ji.load_current_arm_state_from_api_server()[0]
+    ji.set_target_configuration(target_position=target_pos_deg, current_position=current_pos_deg)
+
+    print(f"Starting interpolation from {ji.current_position} to {target_pos_deg}")
+
+    while not ji.is_finished():
+        sample = ji.get_joint_commands()
+        print(
+            f"Pos: {[f'{p:.2f}' for p in sample.position]}, "
+            f"Vel: {[f'{v:.2f}' for v in sample.velocity]}, "
+            f"Acc: {[f'{a:.2f}' for a in sample.acceleration]}, "
+            f"Done: {sample.done}"
+        )
+        time.sleep(ji.step_size)
+
