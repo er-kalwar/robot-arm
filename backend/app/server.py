@@ -1,13 +1,13 @@
 from fastapi import FastAPI, HTTPException
-from pydantic import BaseModel, conlist
+from pydantic import BaseModel
 from typing import Literal, Optional, Tuple
 import math
+from .arm import Joint, JointLimitError, RobotArm
 import logging
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-from .arm import Joint, JointLimitError, RobotArm
 app = FastAPI(title="Robotic Arm Control API", version="1.0.0")
 
 arm = RobotArm(joints=[
