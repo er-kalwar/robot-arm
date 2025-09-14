@@ -1,7 +1,17 @@
+# Robot Arm Control Frontend
+# --- ensure repository root is importable ---
+from pathlib import Path
+import sys
+REPO_ROOT = Path(__file__).resolve().parents[1]  # /Users/expertty_/exspace/robot-arm
+if str(REPO_ROOT) not in sys.path:
+    sys.path.insert(0, str(REPO_ROOT))
+# -------------------------------------------
+
 import time
 import streamlit as st
 from dataclasses import dataclass
 import requests
+from backend.app.joint_interpolator import JointInterpolator, Result
 
 st.set_page_config(page_title="Robot Arm Control", layout="centered")
 st.title("Robot Arm Control Interface")
@@ -29,6 +39,28 @@ def ensure_state():
         st.session_state.pose_deg = HOME_POSE.copy()
     for j,v in zip(JOINTS, st.session_state.pose_deg):
         st.session_state.setdefault(f"slider_{j}", int(v))
+
+def set_pose_on_ui(pose_deg: list[float]) -> None:
+    st.session_state.pose_deg = pose_deg.copy()
+    for j, v in zip(JOINTS, pose_deg):
+        st.session_state[f"slider_{j}"] = int(v)
+
+def get_current_robot_pose_from_backend(base_url: str) -> list[float] | None:
+    try:
+        r = requests.get(f"{base_url}/arm", timeout=3.0)
+        r.raise_for_status()
+        joints = r.json().get("joints", [])
+        return [float(j["angle_deg"]) for j in joints] if joints else None
+    except requests.RequestException:
+        return None
+
+if "current_pose_deg" not in st.session_state:
+    # Try to bootstrap from backend; if unavailable, fall back to HOME
+    live = get_current_robot_pose_from_backend(backend_url)
+    st.session_state.current_pose_deg = live if live else HOME_POSE.copy()
+    # Optionally sync sliders to the real robot on first load:
+    set_pose_on_ui(st.session_state.current_pose_deg)
+
 
 def build_cmd():
     cmd = {
@@ -85,7 +117,6 @@ for i, joint in enumerate(JOINTS):
 
 # Update pose from sliders
 st.session_state.pose_deg = [st.session_state[f"slider_{j}"] for j in JOINTS]
-#st.write("Current Pose (degrees):", st.session_state.pose_deg)
 
 cmd = build_cmd()
 st.subheader("Generated JSON Command")
@@ -98,10 +129,26 @@ send_col, refresh_col = st.columns(2)
 with send_col:
     if st.button("Send Command to Robot", use_container_width=True):
         assert_pose_in_limits(st.session_state.pose_deg)
+        # Target Sliders
+        target_pos_deg = st.session_state.pose_deg.copy()
+        print(f"Target position on slider is: {target_pos_deg}")
+
+        # Current position
+        current_pos_deg = st.session_state.get("current_pose_deg", HOME_POSE).copy()
+        print(f"Current position in state is: {current_pos_deg}")
         ok, payload = post_command(backend_url, cmd)
         if ok:
             st.success("Command sent successfully!")
             st.json(payload, expanded=False)
+
+
+            ji = JointInterpolator(step_size=0.01, dof=6,
+                                   max_acceleration=50,
+                                   max_velocity=10,
+                                   max_jerk=500.0) # Units: deg, deg/s, deg/s^2, deg/s^3)
+            ji.run_interpolation(target_pos_deg, current_pos_deg=current_pos_deg)
+            st.session_state.current_pose_deg = target_pos_deg.copy()
+            
         else:
             st.error(f"Failed to send command - {payload.get('error', 'Unknown error')} ")
 
@@ -121,92 +168,4 @@ with refresh_col:
                 st.error(f"Failed to fetch state - Status code {response.status_code}")
         except requests.RequestException as e:
             st.error(f"Failed to fetch state - {str(e)}")
-
-
-
-
-
-
-
-# # Robot Visualization Placeholder
-# # --- 3D Visualization (Plotly) -----------------------------------------------
-# import numpy as np
-# import plotly.graph_objects as go
-
-# # Link lengths in meters (tweak as you like)
-# LINKS = [0.30, 0.30, 0.30, 0.30, 0.30, 0.30]
-
-# # Homogeneous transform helpers
-# def Rx(a):
-#     c, s = np.cos(a), np.sin(a)
-#     return np.array([[1,0,0,0],[0,c,-s,0],[0,s,c,0],[0,0,0,1]], dtype=float)
-
-# def Ry(a):
-#     c, s = np.cos(a), np.sin(a)
-#     return np.array([[c,0,s,0],[0,1,0,0],[-s,0,c,0],[0,0,0,1]], dtype=float)
-
-# def Rz(a):
-#     c, s = np.cos(a), np.sin(a)
-#     return np.array([[c,-s,0,0],[s,c,0,0],[0,0,1,0],[0,0,0,1]], dtype=float)
-
-# def Tx(d): return np.array([[1,0,0,d],[0,1,0,0],[0,0,1,0],[0,0,0,1]], dtype=float)
-# def Tz(d): return np.array([[1,0,0,0],[0,1,0,0],[0,0,1,d],[0,0,0,1]], dtype=float)
-
-# def fk_points_deg(q_deg, L):
-#     """Very simple 6R kinematic chain for visualization (not tied to any real robot).
-#        Frame sequence (base at origin):
-#        1) Rz(q1), Tz(L1)
-#        2) Ry(q2), Tx(L2)
-#        3) Ry(q3), Tx(L3)
-#        4) Rz(q4), Tx(L4)
-#        5) Ry(q5), Tx(L5)
-#        6) Rz(q6), Tx(L6)
-#        Returns 7 points: base + 6 joints/tool.
-#     """
-#     q = np.radians(q_deg)
-#     T = np.eye(4)
-#     pts = [T[:3, 3].copy()]  # base
-
-#     T = T @ Rz(q[0]) @ Tz(L[0]);  pts.append(T[:3,3].copy())
-#     T = T @ Ry(q[1]) @ Tx(L[1]);  pts.append(T[:3,3].copy())
-#     T = T @ Ry(q[2]) @ Tx(L[2]);  pts.append(T[:3,3].copy())
-#     T = T @ Rz(q[3]) @ Tx(L[3]);  pts.append(T[:3,3].copy())
-#     T = T @ Ry(q[4]) @ Tx(L[4]);  pts.append(T[:3,3].copy())
-#     T = T @ Rz(q[5]) @ Tx(L[5]);  pts.append(T[:3,3].copy())
-
-#     return np.vstack(pts)  # shape (7, 3)
-
-# def plot_arm(points, reach):
-#     x, y, z = points[:,0], points[:,1], points[:,2]
-#     fig = go.Figure()
-
-#     # stick + joints
-#     fig.add_trace(go.Scatter3d(
-#         x=x, y=y, z=z, mode="lines+markers",
-#         line=dict(width=6), marker=dict(size=4)
-#     ))
-
-#     # base frame axes (for orientation)
-#     ax_len = min(0.15, reach*0.25)
-#     fig.add_trace(go.Scatter3d(x=[0, ax_len], y=[0,0], z=[0,0], mode="lines", name="X"))
-#     fig.add_trace(go.Scatter3d(x=[0,0], y=[0, ax_len], z=[0,0], mode="lines", name="Y"))
-#     fig.add_trace(go.Scatter3d(x=[0,0], y=[0,0], z=[0, ax_len], mode="lines", name="Z"))
-
-#     fig.update_layout(
-#         margin=dict(l=0, r=0, t=30, b=0),
-#         scene=dict(
-#             xaxis=dict(range=[-reach, reach], zeroline=False, showgrid=True),
-#             yaxis=dict(range=[-reach, reach], zeroline=False, showgrid=True),
-#             zaxis=dict(range=[-reach, reach], zeroline=False, showgrid=True),
-#             aspectmode="cube",
-#             camera=dict(eye=dict(x=1.6, y=1.6, z=1.0))
-#         ),
-#         showlegend=False,
-#         title="3D Robot Arm (stick model)"
-#     )
-#     st.plotly_chart(fig, use_container_width=True, key="arm_plot")
-
-# # Compute and draw
-# reach = sum(LINKS) + 0.05
-# pts = fk_points_deg(st.session_state.pose_deg, LINKS)
-# plot_arm(pts, reach)
+    
