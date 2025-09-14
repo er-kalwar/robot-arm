@@ -125,85 +125,88 @@ with refresh_col:
 
 
 
-# Robot Visualization Placeholder
-# --- 3D Visualization (Plotly) -----------------------------------------------
-import numpy as np
-import plotly.graph_objects as go
 
-# Link lengths in meters (tweak as you like)
-LINKS = [0.30, 0.30, 0.30, 0.30, 0.30, 0.30]
 
-# Homogeneous transform helpers
-def Rx(a):
-    c, s = np.cos(a), np.sin(a)
-    return np.array([[1,0,0,0],[0,c,-s,0],[0,s,c,0],[0,0,0,1]], dtype=float)
 
-def Ry(a):
-    c, s = np.cos(a), np.sin(a)
-    return np.array([[c,0,s,0],[0,1,0,0],[-s,0,c,0],[0,0,0,1]], dtype=float)
+# # Robot Visualization Placeholder
+# # --- 3D Visualization (Plotly) -----------------------------------------------
+# import numpy as np
+# import plotly.graph_objects as go
 
-def Rz(a):
-    c, s = np.cos(a), np.sin(a)
-    return np.array([[c,-s,0,0],[s,c,0,0],[0,0,1,0],[0,0,0,1]], dtype=float)
+# # Link lengths in meters (tweak as you like)
+# LINKS = [0.30, 0.30, 0.30, 0.30, 0.30, 0.30]
 
-def Tx(d): return np.array([[1,0,0,d],[0,1,0,0],[0,0,1,0],[0,0,0,1]], dtype=float)
-def Tz(d): return np.array([[1,0,0,0],[0,1,0,0],[0,0,1,d],[0,0,0,1]], dtype=float)
+# # Homogeneous transform helpers
+# def Rx(a):
+#     c, s = np.cos(a), np.sin(a)
+#     return np.array([[1,0,0,0],[0,c,-s,0],[0,s,c,0],[0,0,0,1]], dtype=float)
 
-def fk_points_deg(q_deg, L):
-    """Very simple 6R kinematic chain for visualization (not tied to any real robot).
-       Frame sequence (base at origin):
-       1) Rz(q1), Tz(L1)
-       2) Ry(q2), Tx(L2)
-       3) Ry(q3), Tx(L3)
-       4) Rz(q4), Tx(L4)
-       5) Ry(q5), Tx(L5)
-       6) Rz(q6), Tx(L6)
-       Returns 7 points: base + 6 joints/tool.
-    """
-    q = np.radians(q_deg)
-    T = np.eye(4)
-    pts = [T[:3, 3].copy()]  # base
+# def Ry(a):
+#     c, s = np.cos(a), np.sin(a)
+#     return np.array([[c,0,s,0],[0,1,0,0],[-s,0,c,0],[0,0,0,1]], dtype=float)
 
-    T = T @ Rz(q[0]) @ Tz(L[0]);  pts.append(T[:3,3].copy())
-    T = T @ Ry(q[1]) @ Tx(L[1]);  pts.append(T[:3,3].copy())
-    T = T @ Ry(q[2]) @ Tx(L[2]);  pts.append(T[:3,3].copy())
-    T = T @ Rz(q[3]) @ Tx(L[3]);  pts.append(T[:3,3].copy())
-    T = T @ Ry(q[4]) @ Tx(L[4]);  pts.append(T[:3,3].copy())
-    T = T @ Rz(q[5]) @ Tx(L[5]);  pts.append(T[:3,3].copy())
+# def Rz(a):
+#     c, s = np.cos(a), np.sin(a)
+#     return np.array([[c,-s,0,0],[s,c,0,0],[0,0,1,0],[0,0,0,1]], dtype=float)
 
-    return np.vstack(pts)  # shape (7, 3)
+# def Tx(d): return np.array([[1,0,0,d],[0,1,0,0],[0,0,1,0],[0,0,0,1]], dtype=float)
+# def Tz(d): return np.array([[1,0,0,0],[0,1,0,0],[0,0,1,d],[0,0,0,1]], dtype=float)
 
-def plot_arm(points, reach):
-    x, y, z = points[:,0], points[:,1], points[:,2]
-    fig = go.Figure()
+# def fk_points_deg(q_deg, L):
+#     """Very simple 6R kinematic chain for visualization (not tied to any real robot).
+#        Frame sequence (base at origin):
+#        1) Rz(q1), Tz(L1)
+#        2) Ry(q2), Tx(L2)
+#        3) Ry(q3), Tx(L3)
+#        4) Rz(q4), Tx(L4)
+#        5) Ry(q5), Tx(L5)
+#        6) Rz(q6), Tx(L6)
+#        Returns 7 points: base + 6 joints/tool.
+#     """
+#     q = np.radians(q_deg)
+#     T = np.eye(4)
+#     pts = [T[:3, 3].copy()]  # base
 
-    # stick + joints
-    fig.add_trace(go.Scatter3d(
-        x=x, y=y, z=z, mode="lines+markers",
-        line=dict(width=6), marker=dict(size=4)
-    ))
+#     T = T @ Rz(q[0]) @ Tz(L[0]);  pts.append(T[:3,3].copy())
+#     T = T @ Ry(q[1]) @ Tx(L[1]);  pts.append(T[:3,3].copy())
+#     T = T @ Ry(q[2]) @ Tx(L[2]);  pts.append(T[:3,3].copy())
+#     T = T @ Rz(q[3]) @ Tx(L[3]);  pts.append(T[:3,3].copy())
+#     T = T @ Ry(q[4]) @ Tx(L[4]);  pts.append(T[:3,3].copy())
+#     T = T @ Rz(q[5]) @ Tx(L[5]);  pts.append(T[:3,3].copy())
 
-    # base frame axes (for orientation)
-    ax_len = min(0.15, reach*0.25)
-    fig.add_trace(go.Scatter3d(x=[0, ax_len], y=[0,0], z=[0,0], mode="lines", name="X"))
-    fig.add_trace(go.Scatter3d(x=[0,0], y=[0, ax_len], z=[0,0], mode="lines", name="Y"))
-    fig.add_trace(go.Scatter3d(x=[0,0], y=[0,0], z=[0, ax_len], mode="lines", name="Z"))
+#     return np.vstack(pts)  # shape (7, 3)
 
-    fig.update_layout(
-        margin=dict(l=0, r=0, t=30, b=0),
-        scene=dict(
-            xaxis=dict(range=[-reach, reach], zeroline=False, showgrid=True),
-            yaxis=dict(range=[-reach, reach], zeroline=False, showgrid=True),
-            zaxis=dict(range=[-reach, reach], zeroline=False, showgrid=True),
-            aspectmode="cube",
-            camera=dict(eye=dict(x=1.6, y=1.6, z=1.0))
-        ),
-        showlegend=False,
-        title="3D Robot Arm (stick model)"
-    )
-    st.plotly_chart(fig, use_container_width=True, key="arm_plot")
+# def plot_arm(points, reach):
+#     x, y, z = points[:,0], points[:,1], points[:,2]
+#     fig = go.Figure()
 
-# Compute and draw
-reach = sum(LINKS) + 0.05
-pts = fk_points_deg(st.session_state.pose_deg, LINKS)
-plot_arm(pts, reach)
+#     # stick + joints
+#     fig.add_trace(go.Scatter3d(
+#         x=x, y=y, z=z, mode="lines+markers",
+#         line=dict(width=6), marker=dict(size=4)
+#     ))
+
+#     # base frame axes (for orientation)
+#     ax_len = min(0.15, reach*0.25)
+#     fig.add_trace(go.Scatter3d(x=[0, ax_len], y=[0,0], z=[0,0], mode="lines", name="X"))
+#     fig.add_trace(go.Scatter3d(x=[0,0], y=[0, ax_len], z=[0,0], mode="lines", name="Y"))
+#     fig.add_trace(go.Scatter3d(x=[0,0], y=[0,0], z=[0, ax_len], mode="lines", name="Z"))
+
+#     fig.update_layout(
+#         margin=dict(l=0, r=0, t=30, b=0),
+#         scene=dict(
+#             xaxis=dict(range=[-reach, reach], zeroline=False, showgrid=True),
+#             yaxis=dict(range=[-reach, reach], zeroline=False, showgrid=True),
+#             zaxis=dict(range=[-reach, reach], zeroline=False, showgrid=True),
+#             aspectmode="cube",
+#             camera=dict(eye=dict(x=1.6, y=1.6, z=1.0))
+#         ),
+#         showlegend=False,
+#         title="3D Robot Arm (stick model)"
+#     )
+#     st.plotly_chart(fig, use_container_width=True, key="arm_plot")
+
+# # Compute and draw
+# reach = sum(LINKS) + 0.05
+# pts = fk_points_deg(st.session_state.pose_deg, LINKS)
+# plot_arm(pts, reach)
