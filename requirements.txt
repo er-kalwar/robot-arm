@@ -1,0 +1,9 @@
+streamlit>=1.36
+requests>=2.31    
+fastapi>=0.112
+uvicorn[standard]>=0.30
+numpy>=1.26
+ruckig>=0.10.4     
+matplotlib>=3.9    
+plotly>=5.23       
+pandas>=2.2        
