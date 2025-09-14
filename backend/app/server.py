@@ -1,9 +1,10 @@
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
-from typing import Literal, Optional, Tuple
+from typing import List, Literal, Optional, Tuple
 import math
 from .arm import Joint, JointLimitError, RobotArm
 import logging
+from .joint_interpolator import JointInterpolator, Result
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -39,4 +40,3 @@ def set_joints(request: SetJointsRequest):
     except JointLimitError as e:
         logging.error(f"Joint limit error: {e}")
         raise HTTPException(status_code=400, detail=str(e))
-    
