@@ -12,6 +12,7 @@ import streamlit as st
 from dataclasses import dataclass
 import requests
 from backend.app.joint_interpolator import JointInterpolator, Result
+from visualization import plot_trajectory
 
 st.set_page_config(page_title="Robot Arm Control", layout="centered")
 st.title("Robot Arm Control Interface")
@@ -146,7 +147,8 @@ with send_col:
                                    max_acceleration=50,
                                    max_velocity=10,
                                    max_jerk=500.0) # Units: deg, deg/s, deg/s^2, deg/s^3)
-            ji.run_interpolation(target_pos_deg, current_pos_deg=current_pos_deg)
+            traj = ji.run_interpolation(target_pos_deg, current_pos_deg=current_pos_deg)
+            plot_trajectory(traj, step_size=ji.step_size, dof=ji.dof, save_path="traj.png")
             st.session_state.current_pose_deg = target_pos_deg.copy()
             
         else:
