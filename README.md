@@ -41,3 +41,6 @@ curl http://localhost:8000/arm
 The **frontend** is a Streamlit web app that lets you control the 6-DOF robot arm using sliders for each joint. When you adjust the sliders and click **Send Command to Robot**, it sends the joint angles to the backend, gets a trajectory back, and plots the positions, velocities, and accelerations in real time.
 
 Currently, there is no support for 3D Vizualization. 
+
+Currently, the app only shows 2D plots (joint angles, velocities, accelerations). If I had more time, I would add 3D visualization so the robot’s motion can be seen in space.
+To do this, I would use a URDF model of the robot and visualizing it in RViz (ROS tool). The Streamlit sliders or trajectory generator would publish joint states, and RViz would animate the robot in real time.
