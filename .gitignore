@@ -1,0 +1,7 @@
+
+# Big artifacts
+*.tar
+*.tar.gz
+*.zip
+*.bag
+*.bag.active
